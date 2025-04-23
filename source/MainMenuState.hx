@@ -330,6 +330,7 @@ class MainMenuState extends HScriptStateHandler
 							item = rightItem;
 					}
 
+					callOnScripts('onSelectItem', [option]);
 					FlxFlicker.flicker(item, 1, 0.06, false, false, function(flick:FlxFlicker)
 					{
 						switch (option)
@@ -383,6 +384,7 @@ class MainMenuState extends HScriptStateHandler
 	{
 		if(change != 0) curColumn = CENTER;
 		curSelected = FlxMath.wrap(curSelected + change, 0, optionShit.length - 1);
+		callOnScripts('onChangeItem', [curSelected]);
 		FlxG.sound.play(Paths.sound('scrollMenu'));
 
 		for (item in menuItems)

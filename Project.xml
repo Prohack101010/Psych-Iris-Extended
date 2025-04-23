@@ -74,7 +74,9 @@
 	<define name="SCRIPTING_ALLOWED" if="desktop || mobile" /> <!-- DELETE THIS TO DISABLE SCRIPTING STATES -->
 	<define name="LUA_ALLOWED" if="desktop || mobile"/>
 	<define name="ACHIEVEMENTS_ALLOWED" />
-	<define name="VIDEOS_ALLOWED" if="web || windows || android" unless="32bits || ios"/>
+	<section if="cpp">
+		<define name="VIDEOS_ALLOWED" if="web || windows || android" unless="32bits || ios"/>
+	</section>
 	<define name="PSYCH_WATERMARKS"/> <!-- DELETE THIS TO REMOVE WATERMARKS/DEV NAMES ON TITLE SCREEN -->
 	<define name="CRASH_HANDLER" if="desktop release || mobile" />
 
@@ -173,6 +175,8 @@
 	<haxelib name="grig.audio" />
 	<haxelib name="flxanimate"/>
 	<haxelib name="funkin.vis"/>
+	
+	<classpath path="macro_support"/>
 
 	<!-- Enables a terminal log prompt on debug builds -->
 	<!-- <haxelib name="hxcpp-debug-server"/> -->
@@ -184,6 +188,9 @@
 	<!--<haxelib name="nape-haxe4" />-->
 
 	<!-- ______________________________ Haxedefines _____________________________ -->
+
+	<haxeflag name="-dce" value="no" />
+	<haxeflag name="--macro" value="scripting.macros.Macros.addAdditionalClasses()" />
 
 	<!--Enable the Flixel core recording system-->
 	<!--<haxedef name="FLX_RECORD" />-->
@@ -240,7 +247,7 @@
 	
 	<!--Macro fixes-->
 	<haxeflag name="--macro" value="allowPackage('flash')" />
-	<haxeflag name="--macro" value="include('my.pack')" />
+	<haxeflag name="--macro" value="scripting.macros.Macros.initMacros()" />
 	
 	<haxedef name="DISABLED_MACRO_SUPERLATIVE" if="android" />
 

@@ -160,6 +160,7 @@ class HScriptStateHandler extends MusicBeatState
 		{
 			(newScript = new HScript(null, file)).setParent(this);
 			if (newScript.exists('onCreate')) newScript.call('onCreate');
+			else if (newScript.exists('create')) newScript.call('create');
 			trace('initialized hscript interp successfully: $file');
 			hscriptArray.push(newScript);
 		}
@@ -217,6 +218,13 @@ class HScriptStateHandler extends MusicBeatState
 			}
 		}
 
+		switch (funcToCall) //Codename Engine Functions (if you're using `create` function in your code, Don't add `onUpdate`)
+		{
+			case 'onCreate': callOnScripts('create');
+			case 'onCreatePost': callOnScripts('postCreate');
+			case 'onUpdate': callOnScripts('update');
+			case 'onUpdatePost': callOnScripts('postUpdate');
+		}
 		return returnVal;
 	}
 
