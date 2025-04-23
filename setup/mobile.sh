@@ -7,6 +7,7 @@ echo Makking the main haxelib and setuping folder in same time..
 haxelib setup ~/haxelib
 echo Installing dependencies...
 echo This might take a few moments depending on your internet speed.
+haxelib install openfl 9.3.3 --quiet
 haxelib git linc_luajit https://github.com/PsychExtendedThings/linc_luajit --quiet
 haxelib install tjson --quiet
 haxelib git flixel https://github.com/MobilePorting/flixel 5.6.1 --quiet
