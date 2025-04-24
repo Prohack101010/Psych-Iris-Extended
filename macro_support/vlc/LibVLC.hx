@@ -11,6 +11,7 @@ package vlc;
 #if !(desktop || android)
 #error "The current target platform isn't supported by hxCodec. If you are targeting Windows/Mac/Linux/Android and you are getting this message, please contact us.";
 #end
+#if !macro
 #if cpp
 import cpp.ConstCharStar;
 import cpp.RawPointer;
@@ -20,12 +21,18 @@ import cpp.UInt32;
 #end
 import vlc.helpers.VoidStarConstStar;
 
-#if cpp
+#if !macro
 typedef LibVLC_Instance = RawPointer<LibVLC_Instance_T>;
 typedef LibVLC_AudioOutput = RawPointer<LibVLC_AudioOutput_T>;
 typedef LibVLC_MediaPlayer = RawPointer<LibVLC_MediaPlayer_T>;
 typedef LibVLC_Media = RawPointer<LibVLC_Media_T>;
 typedef LibVLC_EventManager = RawPointer<LibVLC_EventManager_T>;
+#else
+typedef LibVLC_Instance = LibVLC_Instance_T;
+typedef LibVLC_AudioOutput = LibVLC_AudioOutput_T;
+typedef LibVLC_MediaPlayer = LibVLC_MediaPlayer_T;
+typedef LibVLC_Media = LibVLC_Media_T;
+typedef LibVLC_EventManager = LibVLC_EventManager_T;
 #end
 
 @:buildXml("<include name='${haxelib:hxCodec}/src/vlc/LibVLCBuild.xml' />")
@@ -185,9 +192,7 @@ typedef LibVLC_Video_Display_Callback = cpp.Callable<(opaque:cpp.Star<cpp.Void>,
 @:include("vlc/vlc.h")
 @:keep
 @:native("libvlc_instance_t")
-#if cpp
 extern class LibVLC_Instance_T {}
-#end
 
 @:include("vlc/vlc.h")
 @:keep
@@ -248,7 +253,9 @@ extern class LibVLC_MediaPlayer_PositionChanged
 @:native("media_player_time_changed")
 extern class LibVLC_MediaPlayer_TimeChanged
 {
+	#if cpp
 	var new_time:Int64;
+	#end
 }
 
 @:include("vlc/vlc.h")
@@ -257,7 +264,9 @@ extern class LibVLC_MediaPlayer_TimeChanged
 @:native("media_player_length_changed")
 extern class LibVLC_MediaPlayer_LengthChanged
 {
+	#if cpp
 	var new_length:Int64;
+	#end
 }
 
 @:include("vlc/vlc.h")
@@ -333,3 +342,4 @@ enum abstract LibVLC_EventType(Int) from Int to Int
 	var MediaListPlayerNextItemSet = 1025;
 	var MediaListPlayerStopped = 1026;
 }
+#end

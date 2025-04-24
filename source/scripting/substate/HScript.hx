@@ -359,7 +359,7 @@ class HScript extends Iris
 		try {
 			var func:Dynamic = interp.variables.get(funcToRun); // function signature
 			final ret = Reflect.callMethod(null, func, args);
-			if (args == null) ret = Reflect.callMethod(null, func, []);
+			if(args == null) ret = Reflect.callMethod(null, func, []);
 			return {funName: funcToRun, signature: func, returnValue: ret};
 		}
 		catch(e:IrisError) {

@@ -144,11 +144,19 @@ class VLCBitmap extends Bitmap
 	private var texture:RectangleTexture;
 
 	// LibVLC
+	#if !macro
 	private var instance:LibVLC_Instance;
 	private var audioOutput:LibVLC_AudioOutput;
 	private var mediaPlayer:LibVLC_MediaPlayer;
 	private var mediaItem:LibVLC_Media;
 	private var eventManager:LibVLC_EventManager;
+	#else
+	private var instance = null;
+	private var audioOutput = null;
+	private var mediaPlayer = null;
+	private var mediaItem = null;
+	private var eventManager = null;
+	#end
 
 	public function new():Void
 	{
@@ -157,8 +165,10 @@ class VLCBitmap extends Bitmap
 		for (event in 0...7)
 			flags[event] = false;
 
+		#if !macro
 		instance = LibVLC.init(0, null);
 		audioOutput = LibVLC.audio_output_list_get(instance);
+		#end
 
 		if (stage != null)
 			onAddedToStage();
@@ -173,6 +183,7 @@ class VLCBitmap extends Bitmap
 
 		trace("setting path to: " + path);
 
+		#if !macro
 		mediaItem = LibVLC.media_new_path(instance, path);
 		mediaPlayer = LibVLC.media_player_new_from_media(mediaItem);
 
@@ -217,6 +228,7 @@ class VLCBitmap extends Bitmap
 		LibVLC.event_attach(eventManager, LibVLC_EventType.MediaPlayerBackward, untyped __cpp__('callbacks'), untyped __cpp__('this'));
 
 		LibVLC.media_player_play(mediaPlayer);
+		#end
 	}
 
 	public function stop():Void

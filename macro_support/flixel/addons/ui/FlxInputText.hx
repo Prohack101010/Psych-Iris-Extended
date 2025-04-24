@@ -1,17 +1,19 @@
 package flixel.addons.ui;
 
-import openfl.errors.Error;
-import openfl.events.KeyboardEvent;
-import openfl.geom.Rectangle;
-import flixel.addons.ui.FlxUI.NamedString;
 import flixel.FlxG;
 import flixel.FlxSprite;
+import flixel.addons.ui.FlxUI.NamedString;
+import flixel.input.keyboard.FlxKey;
 import flixel.math.FlxPoint;
 import flixel.math.FlxRect;
 import flixel.text.FlxText;
 import flixel.util.FlxColor;
 import flixel.util.FlxDestroyUtil;
 import flixel.util.FlxTimer;
+import lime.system.Clipboard;
+import openfl.errors.Error;
+import openfl.events.KeyboardEvent;
+import openfl.geom.Rectangle;
 
 /**
  * FlxInputText v1.11, ported to Haxe
@@ -223,12 +225,17 @@ class FlxInputText extends FlxText
 		}
 
 		lines = 1;
-		FlxG.stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);
+		FlxG.stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown, false, 1);
 
 		if (Text == null)
 		{
 			Text = "";
 		}
+
+		// Register paste events for the HTML5 parent window
+		#if (js && html5)
+		FlxG.stage.window.onTextInput.add(handleClipboardText);
+		#end
 
 		text = Text; // ensure set_text is called to avoid bugs (like not preparing _charBoundaries on sys target, making it impossible to click)
 
@@ -257,19 +264,45 @@ class FlxInputText extends FlxText
 		}
 		#end
 
+		#if (js && html5)
+		FlxG.stage.window.onTextInput.remove(handleClipboardText);
+		#end
+
 		super.destroy();
 	}
 
 	/**
-	 * Draw the caret in addition to the text.
+	 * Draw the background, border and caret in addition to the text.
 	 */
 	override public function draw():Void
 	{
+		regenGraphic();
+		checkEmptyFrame();
+		
+		if (alpha == 0 || _frame.type == EMPTY)
+			return;
+		
+		if (dirty) // rarely
+			calcFrame(useFramePixels);
+		
 		drawSprite(fieldBorderSprite);
 		drawSprite(backgroundSprite);
-
-		super.draw();
-
+		
+		for (camera in getCamerasLegacy())
+		{
+			if (!camera.visible || !camera.exists || !isOnScreen(camera))
+				continue;
+			
+			if (isSimpleRender(camera))
+				drawSimple(camera);
+			else
+				drawComplex(camera);
+			
+			#if FLX_DEBUG
+			FlxBasic.visibleCount++;
+			#end
+		}
+		
 		// In case caretColor was changed
 		if (caretColor != caret.color || caret.height != size + 2)
 		{
@@ -277,6 +310,11 @@ class FlxInputText extends FlxText
 		}
 
 		drawSprite(caret);
+		
+		#if FLX_DEBUG
+		if (FlxG.debugger.drawDebug)
+			drawDebug();
+		#end
 	}
 
 	/**
@@ -288,7 +326,7 @@ class FlxInputText extends FlxText
 		if (Sprite != null && Sprite.visible)
 		{
 			Sprite.scrollFactor = scrollFactor;
-			Sprite.cameras = cameras;
+			Sprite._cameras = _cameras;
 			Sprite.draw();
 		}
 	}
@@ -327,84 +365,70 @@ class FlxInputText extends FlxText
 	 */
 	private function onKeyDown(e:KeyboardEvent):Void
 	{
-		var key:Int = e.keyCode;
+		final key:FlxKey = e.keyCode;
 
 		if (hasFocus)
 		{
-			// Do nothing for Shift, Ctrl, Esc, and flixel console hotkey
-			if (key == 16 || key == 17 || key == 220 || key == 27)
+			switch (key)
 			{
-				return;
-			}
-			// Left arrow
-			else if (key == 37)
-			{
-				if (caretIndex > 0)
-				{
-					caretIndex--;
-					text = text; // forces scroll update
-				}
-			}
-			// Right arrow
-			else if (key == 39)
-			{
-				if (caretIndex < text.length)
-				{
-					caretIndex++;
-					text = text; // forces scroll update
-				}
-			}
-			// End key
-			else if (key == 35)
-			{
-				caretIndex = text.length;
-				text = text; // forces scroll update
-			}
-			// Home key
-			else if (key == 36)
-			{
-				caretIndex = 0;
-				text = text;
-			}
-			// Backspace
-			else if (key == 8)
-			{
-				if (caretIndex > 0)
-				{
-					caretIndex--;
-					text = text.substring(0, caretIndex) + text.substring(caretIndex + 1);
-					onChange(BACKSPACE_ACTION);
-				}
-			}
-			// Delete
-			else if (key == 46)
-			{
-				if (text.length > 0 && caretIndex < text.length)
-				{
-					text = text.substring(0, caretIndex) + text.substring(caretIndex + 1);
-					onChange(DELETE_ACTION);
-				}
-			}
-			// Enter
-			else if (key == 13)
-			{
-				onChange(ENTER_ACTION);
-			}
-			// Actually add some text
-			else
-			{
-				if (e.charCode == 0) // non-printable characters crash String.fromCharCode
-				{
+				case SHIFT | CONTROL | BACKSLASH | ESCAPE:
 					return;
-				}
-				var newText:String = filter(String.fromCharCode(e.charCode));
+				case LEFT:
+					if (caretIndex > 0)
+					{
+						caretIndex--;
+						text = text; // forces scroll update
+					}
+				case RIGHT:
+					if (caretIndex < text.length)
+					{
+						caretIndex++;
+						text = text; // forces scroll update
+					}
+				case END:
+					caretIndex = text.length;
+					text = text; // forces scroll update
+				case HOME:
+					caretIndex = 0;
+					text = text;
+				case BACKSPACE:
+					if (caretIndex > 0)
+					{
+						caretIndex--;
+						text = text.substring(0, caretIndex) + text.substring(caretIndex + 1);
+						onChange(BACKSPACE_ACTION);
+					}
+				case DELETE:
+					if (text.length > 0 && caretIndex < text.length)
+					{
+						text = text.substring(0, caretIndex) + text.substring(caretIndex + 1);
+						onChange(DELETE_ACTION);
+					}
+				case ENTER:
+					onChange(ENTER_ACTION);
+				case V if (e.ctrlKey):
+					// Reapply focus  when tabbing back into the window and selecting the field
+					#if (js && html5)
+					FlxG.stage.window.textInputEnabled = true;
+					#else
+					var clipboardText:String = Clipboard.text;
+					if (clipboardText != null)
+						pasteClipboardText(clipboardText);
+					#end
+				default:
+					// Actually add some text
+					if (e.charCode == 0) // non-printable characters crash String.fromCharCode
+					{
+						return;
+					}
+					final newText = filter(String.fromCharCode(e.charCode));
 
-				if (newText.length > 0 && (maxLength == 0 || (text.length + newText.length) < maxLength))
-				{
-					text = insertSubstring(text, newText, caretIndex);
-					caretIndex++;
-					onChange(INPUT_ACTION);
-				}
+					if (newText.length > 0 && (maxLength == 0 || (text.length + newText.length) <= maxLength))
+					{
+						text = insertSubstring(text, newText, caretIndex);
+						caretIndex++;
+						onChange(INPUT_ACTION);
+					}
 			}
 		}
 	}
@@ -415,6 +439,23 @@ class FlxInputText extends FlxText
 		{
 			callback(text, action);
 		}
+	}
+
+	#if (html5 && js)
+	function handleClipboardText(clipboardText:String)
+	{
+		@:privateAccess if (Clipboard._text == clipboardText)
+			pasteClipboardText(clipboardText);
+	}
+	#end
+
+	function pasteClipboardText(clipboardText:String)
+	{
+		final newText = filter(clipboardText).substring(0, maxLength > 0 ? (maxLength - text.length) : clipboardText.length);
+
+		text = insertSubstring(text, newText, caretIndex);
+		caretIndex += newText.length;
+		onChange(INPUT_ACTION);
 	}
 
 	/**
@@ -533,11 +574,9 @@ class FlxInputText extends FlxText
 				switch (getAlignStr())
 				{
 					case RIGHT:
-						X = X - textField.width + textField.textWidth
-							;
+						X = X - textField.width + textField.textWidth;
 					case CENTER:
-						X = X - textField.width / 2 + textField.textWidth / 2
-							;
+						X = X - textField.width / 2 + textField.textWidth / 2;
 					default:
 				}
 			}
@@ -678,8 +717,9 @@ class FlxInputText extends FlxText
 			// Generate the properly sized caret and also draw a border that matches that of the textfield (if a border style is set)
 			// borderQuality can be safely ignored since the caret is always a rectangle
 
+			final caretHeight = Std.int(size + 2);
 			var cw:Int = caretWidth; // Basic size of the caret
-			var ch:Int = Std.int(size + 2);
+			var ch:Int = caretHeight;
 
 			// Make sure alpha channels are correctly set
 			var borderC:Int = (0xff000000 | (borderColor & 0x00ffffff));
@@ -693,27 +733,42 @@ class FlxInputText extends FlxText
 					// No border, just make the caret
 					caret.makeGraphic(cw, ch, caretC, false, caretKey);
 					caret.offset.x = caret.offset.y = 0;
-
+					
 				case SHADOW:
 					// Shadow offset to the lower-right
-					cw += Std.int(borderSize);
-					ch += Std.int(borderSize); // expand canvas on one side for shadow
+					final absSize = Math.abs(borderSize);
+					cw += Std.int(absSize);
+					ch += Std.int(absSize); // expand canvas on one side for shadow
 					caret.makeGraphic(cw, ch, FlxColor.TRANSPARENT, false, caretKey); // start with transparent canvas
-					var r:Rectangle = new Rectangle(borderSize, borderSize, caretWidth, Std.int(size + 2));
+					final r:Rectangle = new Rectangle(absSize, absSize, caretWidth, caretHeight);
 					caret.pixels.fillRect(r, borderC); // draw shadow
 					r.x = r.y = 0;
 					caret.pixels.fillRect(r, caretC); // draw caret
 					caret.offset.x = caret.offset.y = 0;
-
+				#if (flixel > "5.8.0")
+				case SHADOW_XY(shadowX, shadowY):
+					// Shadow offset to the lower-right
+					cw += Std.int(Math.abs(shadowX));
+					ch += Std.int(Math.abs(shadowY)); // expand canvas on one side for shadow
+					caret.makeGraphic(cw, ch, FlxColor.TRANSPARENT, false, caretKey); // start with transparent canvas
+					final r:Rectangle = new Rectangle(Math.max(0, shadowX), Math.max(0, shadowY), caretWidth, caretHeight);
+					caret.pixels.fillRect(r, borderC); // draw shadow
+					r.x -= shadowX;
+					r.y -= shadowY;
+					caret.pixels.fillRect(r, caretC); // draw caret
+					caret.offset.x = shadowX < 0 ? -shadowX : 0;
+					caret.offset.y = shadowY < 0 ? -shadowY : 0;
+				#end
 				case OUTLINE_FAST, OUTLINE:
 					// Border all around it
-					cw += Std.int(borderSize * 2);
-					ch += Std.int(borderSize * 2); // expand canvas on both sides
+					final absSize = Math.abs(borderSize);
+					cw += Std.int(absSize * 2);
+					ch += Std.int(absSize * 2); // expand canvas on both sides
 					caret.makeGraphic(cw, ch, borderC, false, caretKey); // start with borderColor canvas
-					var r = new Rectangle(borderSize, borderSize, caretWidth, Std.int(size + 2));
+					final r = new Rectangle(absSize, absSize, caretWidth, caretHeight);
 					caret.pixels.fillRect(r, caretC); // draw caret
 					// we need to offset caret's drawing position since the caret is now larger than normal
-					caret.offset.x = caret.offset.y = borderSize;
+					caret.offset.x = caret.offset.y = absSize;
 			}
 			// Update width/height so caret's dimensions match its pixels
 			caret.width = cw;
@@ -814,6 +869,11 @@ class FlxInputText extends FlxText
 				_caretTimer = new FlxTimer().start(0.5, toggleCaret, 0);
 				caret.visible = true;
 				caretIndex = text.length;
+
+				#if mobile
+				// Initialize soft keyboard
+				FlxG.stage.window.textInputEnabled = true;
+				#end
 			}
 		}
 		else
@@ -824,11 +884,22 @@ class FlxInputText extends FlxText
 			{
 				_caretTimer.cancel();
 			}
+
+			#if mobile
+			// Remove soft keyboard
+			FlxG.stage.window.textInputEnabled = false;
+			#end
 		}
 
 		if (newFocus != hasFocus)
 		{
 			calcFrame();
+
+			// Set focus on background parent text input
+			#if (js && html5)
+			var window = FlxG.stage.window;
+			@:privateAccess window.__backend.setTextInputEnabled(newFocus);
+			#end
 		}
 		return hasFocus = newFocus;
 	}

@@ -1,17 +1,16 @@
 package flixel.addons.ui;
 
-import openfl.events.MouseEvent;
+import flixel.FlxG;
+import flixel.FlxObject;
+import flixel.FlxSprite;
 import flixel.addons.ui.Anchor;
 import flixel.addons.ui.FlxUIAssets;
 import flixel.addons.ui.FlxUICursor.WidgetList;
 import flixel.addons.ui.FlxUISprite;
 import flixel.addons.ui.interfaces.ICursorPointable;
 import flixel.addons.ui.interfaces.IFlxUIWidget;
-import flixel.FlxG;
-import flixel.FlxObject;
-import flixel.FlxSprite;
-import flixel.input.gamepad.FlxGamepadInputID;
 import flixel.input.gamepad.FlxGamepad;
+import flixel.input.gamepad.FlxGamepadInputID;
 import flixel.input.mouse.FlxMouse;
 import flixel.math.FlxMath;
 import flixel.math.FlxPoint;
@@ -19,6 +18,7 @@ import flixel.math.FlxRect;
 import flixel.util.FlxArrayUtil;
 import flixel.util.FlxColor;
 import flixel.util.FlxDestroyUtil;
+import openfl.events.MouseEvent;
 
 /**
  * Cursor object that you can use to "click" on interface elements using a keyboard or gamepad
@@ -202,15 +202,23 @@ class FlxUICursor extends FlxUISprite
 	public var keysClick:Array<FlxBaseMultiInput>; // intent to "click" or select
 
 	// Various default key configurations:
-	public static inline var KEYS_TAB:Int = 0x00000001; // tab to go "right", shift+tab to go "left", enter to click
-	public static inline var KEYS_WASD:Int = 0x00000010; // WASD to go up/left/down/right, enter to click
-	public static inline var KEYS_ARROWS:Int = 0x00000100; // Arrows to go up/left/down/right, enter to click
-	public static inline var KEYS_NUMPAD:Int = 0x00001000; // Numpad numbers to go up/left/down/right, enter to click
+	/* tab to go "right", shift+tab to go "left", enter to click */
+	public static inline var KEYS_TAB = FlxUICursorInputFlag.KEYS_TAB;
+	/* WASD to go up/left/down/right, enter to click */
+	public static inline var KEYS_WASD = FlxUICursorInputFlag.KEYS_WASD;
+	/* Arrows to go up/left/down/right, enter to click */
+	public static inline var KEYS_ARROWS = FlxUICursorInputFlag.KEYS_ARROWS;
+	/* Numpad numbers to go up/left/down/right, enter to click */
+	public static inline var KEYS_NUMPAD = FlxUICursorInputFlag.KEYS_NUMPAD;
 
-	public static inline var GAMEPAD_DPAD:Int = 0x00010000; // DPAD to go up/left/down/right, A to click
-	public static inline var GAMEPAD_LEFT_STICK:Int = 0x00100000; // Left STICK to go up/left/down/right, A to click
-	public static inline var GAMEPAD_RIGHT_STICK:Int = 0x01000000; // Right STICK to go up/left/down/right, A to click
-	public static inline var GAMEPAD_SHOULDER_BUTTONS:Int = 0x10000000; // Left / Right shoulder buttons to go left/right, A to click
+	/* DPAD to go up/left/down/right, A to click */
+	public static inline var GAMEPAD_DPAD = FlxUICursorInputFlag.GAMEPAD_DPAD;
+	/* Left STICK to go up/left/down/right, A to click */
+	public static inline var GAMEPAD_LEFT_STICK = FlxUICursorInputFlag.GAMEPAD_LEFT_STICK;
+	/* Right STICK to go up/left/down/right, A to click */
+	public static inline var GAMEPAD_RIGHT_STICK = FlxUICursorInputFlag.GAMEPAD_RIGHT_STICK;
+	/* Left / Right shoulder buttons to go left/right, A to click */
+	public static inline var GAMEPAD_SHOULDER_BUTTONS = FlxUICursorInputFlag.GAMEPAD_SHOULDER_BUTTONS;
 
 	// Determines how the cursor attaches itself to the widget it's pointing to
 	public var anchor:Anchor;
@@ -232,7 +240,7 @@ class FlxUICursor extends FlxUISprite
 	 * @param	DefaultKeys		default hotkey layouts, accepts KEYS_TAB, ..._WASD, etc, combine using "|" operator
 	 * @param	Asset			visual asset for the cursor. If not supplied, uses default
 	 */
-	public function new(Callback:String->IFlxUIWidget->Void, InputMethod:Int = INPUT_KEYS, DefaultKeys:Int = KEYS_TAB, ?Asset:Dynamic)
+	public function new(Callback:String->IFlxUIWidget->Void, InputMethod:Int = INPUT_KEYS, DefaultKeys = FlxUICursorInputFlag.KEYS_TAB, ?Asset:Dynamic)
 	{
 		if (Asset == null)
 		{ // No asset detected? Guess based on game's resolution
@@ -310,13 +318,12 @@ class FlxUICursor extends FlxUISprite
 	public override function update(elapsed:Float):Void
 	{
 		#if FLX_GAMEPAD
-		if (gamepad == null)
+		if (gamepad == null || !gamepad.connected)
 		{
-			var g = getGamepad(false);
-			if (g != null)
-			{
+			final g = getGamepad(false);
+			// avoid calling set_gamepad unnecessarily 
+			if (gamepad != g)
 				gamepad = g;
-			}
 		}
 		#end
 
@@ -324,13 +331,20 @@ class FlxUICursor extends FlxUISprite
 		if (lastMouseX != FlxG.mouse.x || lastMouseY != FlxG.mouse.y)
 		{
 			var oldVis = visible;
-			jumpToXY(FlxG.mouse.x, FlxG.mouse.y);
+
+			// Ad hoc fix to avoid world coordinates on UI elements
+			if (scrollFactor.x == 0 && scrollFactor.y == 0)
+				#if (flixel < version("5.9.0"))
+				jumpToXY(FlxG.mouse.screenX, FlxG.mouse.screenY);
+				#else
+				jumpToXY(FlxG.mouse.viewX, FlxG.mouse.viewY);
+				#end
+			else
+				jumpToXY(FlxG.mouse.x, FlxG.mouse.y);
 			visible = oldVis;
 
-			#if FLX_MOUSE
 			lastMouseX = FlxG.mouse.x;
 			lastMouseY = FlxG.mouse.y;
-			#end
 		}
 		#end
 
@@ -556,9 +570,9 @@ class FlxUICursor extends FlxUISprite
 		}
 		switch (method)
 		{
-			case XY:
+			case SortMethod.XY:
 				list.sort(_sortXYVisible);
-			case ID:
+			case SortMethod.ID:
 				list.sort(_sortIDVisible);
 		}
 	}
@@ -591,18 +605,20 @@ class FlxUICursor extends FlxUISprite
 	 * Set the default key layout quickly using a constant.
 	 * @param	code	KEYS_TAB, ..._WASD, etc, combine with "|" operator
 	 */
-	public function setDefaultKeys(code:Int):Void
+	public function setDefaultKeys(code:FlxUICursorInputFlag):Void
 	{
 		_defaultCode = code;
 		_clearKeys();
 		_newKeys();
-		if (code & KEYS_TAB == KEYS_TAB)
+		
+		if (code.has(KEYS_TAB))
 		{
 			_addToKeys(keysRight, new FlxMultiKey(TAB, null, [SHIFT])); // Tab, (but NOT Shift+Tab!)
 			_addToKeys(keysLeft, new FlxMultiKey(TAB, [SHIFT])); // Shift+Tab
 			_addToKeys(keysClick, new FlxMultiKey(ENTER));
 		}
-		if (code & KEYS_ARROWS == KEYS_ARROWS)
+		
+		if (code.has(KEYS_ARROWS))
 		{
 			_addToKeys(keysRight, new FlxMultiKey(RIGHT));
 			_addToKeys(keysLeft, new FlxMultiKey(LEFT));
@@ -610,7 +626,8 @@ class FlxUICursor extends FlxUISprite
 			_addToKeys(keysUp, new FlxMultiKey(UP));
 			_addToKeys(keysClick, new FlxMultiKey(ENTER));
 		}
-		if (code & KEYS_WASD == KEYS_WASD)
+		
+		if (code.has(KEYS_WASD))
 		{
 			_addToKeys(keysRight, new FlxMultiKey(D));
 			_addToKeys(keysLeft, new FlxMultiKey(A));
@@ -618,7 +635,8 @@ class FlxUICursor extends FlxUISprite
 			_addToKeys(keysUp, new FlxMultiKey(W));
 			_addToKeys(keysClick, new FlxMultiKey(ENTER));
 		}
-		if (code & KEYS_NUMPAD == KEYS_NUMPAD)
+		
+		if (code.has(KEYS_NUMPAD))
 		{
 			_addToKeys(keysRight, new FlxMultiKey(NUMPADSIX));
 			_addToKeys(keysLeft, new FlxMultiKey(NUMPADFOUR));
@@ -626,42 +644,46 @@ class FlxUICursor extends FlxUISprite
 			_addToKeys(keysUp, new FlxMultiKey(NUMPADEIGHT));
 			_addToKeys(keysClick, new FlxMultiKey(ENTER));
 		}
-
+		
 		#if FLX_GAMEPAD
-		if (gamepad == null)
-		{
+		if (_gamepad == null || !_gamepad.connected)
 			_gamepad = getGamepad(); // set _gamepad to avoid a stack overflow loop
-		}
-
-		if (code & GAMEPAD_DPAD == GAMEPAD_DPAD)
+		
+		if (_gamepad != null && _gamepad.connected)
 		{
-			_addToKeys(keysLeft, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_LEFT));
-			_addToKeys(keysRight, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_RIGHT));
-			_addToKeys(keysDown, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_DOWN));
-			_addToKeys(keysUp, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_UP));
-			_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
-		}
-		if (code & GAMEPAD_SHOULDER_BUTTONS == GAMEPAD_SHOULDER_BUTTONS)
-		{
-			_addToKeys(keysLeft, new FlxMultiGamepad(gamepad, FlxGamepadInputID.LEFT_SHOULDER));
-			_addToKeys(keysRight, new FlxMultiGamepad(gamepad, FlxGamepadInputID.RIGHT_SHOULDER));
-			_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
-		}
-		if (code & GAMEPAD_LEFT_STICK == GAMEPAD_LEFT_STICK)
-		{
-			_addToKeys(keysLeft, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: X, positive: false}));
-			_addToKeys(keysRight, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: X, positive: true}));
-			_addToKeys(keysUp, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: Y, positive: false}));
-			_addToKeys(keysDown, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: Y, positive: true}));
-			_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
-		}
-		if (code & GAMEPAD_RIGHT_STICK == GAMEPAD_RIGHT_STICK)
-		{
-			_addToKeys(keysLeft, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: X, positive: false}));
-			_addToKeys(keysRight, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: X, positive: true}));
-			_addToKeys(keysUp, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: Y, positive: false}));
-			_addToKeys(keysDown, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: Y, positive: true}));
-			_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
+			if (code.has(GAMEPAD_DPAD))
+			{
+				_addToKeys(keysLeft, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_LEFT));
+				_addToKeys(keysRight, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_RIGHT));
+				_addToKeys(keysDown, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_DOWN));
+				_addToKeys(keysUp, new FlxMultiGamepad(gamepad, FlxGamepadInputID.DPAD_UP));
+				_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
+			}
+			
+			if (code.has(GAMEPAD_SHOULDER_BUTTONS))
+			{
+				_addToKeys(keysLeft, new FlxMultiGamepad(gamepad, FlxGamepadInputID.LEFT_SHOULDER));
+				_addToKeys(keysRight, new FlxMultiGamepad(gamepad, FlxGamepadInputID.RIGHT_SHOULDER));
+				_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
+			}
+			
+			if (code.has(GAMEPAD_LEFT_STICK))
+			{
+				_addToKeys(keysLeft, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: X, positive: false}));
+				_addToKeys(keysRight, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: X, positive: true}));
+				_addToKeys(keysUp, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: Y, positive: false}));
+				_addToKeys(keysDown, new FlxMultiGamepadAnalogStick(gamepad, {id: LEFT_ANALOG_STICK, axis: Y, positive: true}));
+				_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
+			}
+			
+			if (code.has(GAMEPAD_RIGHT_STICK))
+			{
+				_addToKeys(keysLeft, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: X, positive: false}));
+				_addToKeys(keysRight, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: X, positive: true}));
+				_addToKeys(keysUp, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: Y, positive: false}));
+				_addToKeys(keysDown, new FlxMultiGamepadAnalogStick(gamepad, {id: RIGHT_ANALOG_STICK, axis: Y, positive: true}));
+				_addToKeys(keysClick, new FlxMultiGamepad(gamepad, FlxGamepadInputID.A));
+			}
 		}
 		#end
 	}
@@ -677,7 +699,7 @@ class FlxUICursor extends FlxUISprite
 	#end
 	private var _clickPressed:Bool = false;
 
-	private var _defaultCode:Int;
+	private var _defaultCode:FlxUICursorInputFlag;
 
 	private var _rightAnchor:Anchor;
 	private var _topAnchor:Anchor;
@@ -689,25 +711,24 @@ class FlxUICursor extends FlxUISprite
 	#if FLX_GAMEPAD
 	private function getGamepad(exhaustive:Bool = true):FlxGamepad
 	{
-		var gamepad = switch (gamepadAutoConnect)
+		final gamepad = switch (gamepadAutoConnect)
 		{
 			case Never: null;
 			case FirstActive: FlxG.gamepads.getFirstActiveGamepad();
 			case LastActive: FlxG.gamepads.lastActive;
 			case GamepadID(i): FlxG.gamepads.getByID(i);
 		}
-		if (gamepad == null && exhaustive)
+
+		if ((gamepad != null && gamepad.connected) || !exhaustive)
+			return gamepad;
+
+		for (i in 0...FlxG.gamepads.numActiveGamepads)
 		{
-			for (i in 0...FlxG.gamepads.numActiveGamepads)
-			{
-				gamepad = FlxG.gamepads.getByID(i);
-				if (gamepad != null)
-				{
-					return gamepad;
-				}
-			}
+			final gamepad = FlxG.gamepads.getByID(i);
+			if (gamepad != null && gamepad.connected)
+				return gamepad;
 		}
-		return gamepad;
+		return null;
 	}
 	#end
 
@@ -923,8 +944,8 @@ class FlxUICursor extends FlxUISprite
 		}
 
 		// get center point of object
-		widgetPoint.x += currWidget.width / 2;
-		widgetPoint.y += currWidget.height / 2;
+		widgetPoint.x += currWidget.width * Camera.totalScaleX * 0.5;
+		widgetPoint.y += currWidget.height * Camera.totalScaleY * 0.5;
 
 		return widgetPoint;
 	}
@@ -945,7 +966,11 @@ class FlxUICursor extends FlxUISprite
 		{
 			#if FLX_MOUSE
 			// REALLY force it to this location
+			#if (flixel < version("5.9.0"))
 			FlxG.mouse.setGlobalScreenPositionUnsafe(pt.x, pt.y);
+			#else
+			FlxG.mouse.setRawPositionUnsafe(pt.x, pt.y);
+			#end
 
 			if (_newMouse != null)
 			{
@@ -986,11 +1011,15 @@ class FlxUICursor extends FlxUISprite
 		#if FLX_MOUSE
 		if (dispatchEvents)
 		{
-			var rawMouseX:Float = pt.x * FlxG.camera.zoom;
-			var rawMouseY:Float = pt.y * FlxG.camera.zoom;
+			final rawMouseX:Float = pt.x * FlxG.camera.zoom;
+			final rawMouseY:Float = pt.y * FlxG.camera.zoom;
+			
 			#if FLX_KEYBOARD
-			FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, rawMouseX, rawMouseY, FlxG.stage, FlxG.keys.pressed.CONTROL,
-				FlxG.keys.pressed.ALT, FlxG.keys.pressed.SHIFT));
+			final ctrl = FlxG.keys.pressed.CONTROL;
+			final alt = FlxG.keys.pressed.ALT;
+			final shift = FlxG.keys.pressed.SHIFT;
+			
+			FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, rawMouseX, rawMouseY, FlxG.stage, ctrl, alt, shift));
 			#else
 			FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN, true, false, rawMouseX, rawMouseY, FlxG.stage));
 			#end
@@ -1028,23 +1057,24 @@ class FlxUICursor extends FlxUISprite
 		}
 
 		#if FLX_MOUSE
-		var rawMouseX:Float = pt.x * FlxG.camera.zoom;
-		var rawMouseY:Float = pt.y * FlxG.camera.zoom;
-
 		if (dispatchEvents)
 		{
 			// dispatch a low-level mouse event to the FlxG.stage object itself
-			#if FLX_KEYBOARD
-			FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP, true, false, rawMouseX, rawMouseY, FlxG.stage, FlxG.keys.pressed.CONTROL,
-				FlxG.keys.pressed.ALT, FlxG.keys.pressed.SHIFT));
+			final rawMouseX:Float = pt.x * FlxG.camera.zoom;
+			final rawMouseY:Float = pt.y * FlxG.camera.zoom;
+			
+			final ctrl = #if FLX_KEYBOARD FlxG.keys.pressed.CONTROL #else false #end;
+			final alt = #if FLX_KEYBOARD FlxG.keys.pressed.ALT #else false #end;
+			final shift = #if FLX_KEYBOARD FlxG.keys.pressed.SHIFT #else false #end;
+			
+			inline function dispatch(type)
+			{
+				FlxG.stage.dispatchEvent(new MouseEvent(type, true, false, rawMouseX, rawMouseY, FlxG.stage, ctrl, alt, shift));
+			}
+			
+			dispatch(MouseEvent.MOUSE_UP);
 			if (_clickPressed)
-				FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.CLICK, true, false, rawMouseX, rawMouseY, FlxG.stage, FlxG.keys.pressed.CONTROL,
-					FlxG.keys.pressed.ALT, FlxG.keys.pressed.SHIFT));
-			#else
-			FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP, true, false, rawMouseX, rawMouseY, FlxG.stage));
-			if (_clickPressed)
-				FlxG.stage.dispatchEvent(new MouseEvent(MouseEvent.CLICK, true, false, rawMouseX, rawMouseY, FlxG.stage));
-			#end
+				dispatch(MouseEvent.CLICK);
 		}
 		#end
 
@@ -1062,7 +1092,11 @@ class FlxUICursor extends FlxUISprite
 		if (_newMouse != null)
 		{
 			_newMouse.updateGlobalScreenPosition = true; // resume low-level-mouse updating now that I'm done overriding it
+			#if (flixel < version("5.9.0"))
 			_newMouse.setGlobalScreenPositionUnsafe(Std.int(FlxG.game.mouseX), Std.int(FlxG.game.mouseY));
+			#else
+			_newMouse.setRawPositionUnsafe(Std.int(FlxG.game.mouseX), Std.int(FlxG.game.mouseY));
+			#end
 		}
 		#end
 	}
@@ -1427,6 +1461,36 @@ class FlxUICursor extends FlxUISprite
 			theAnchor.anchorThing(this, destination);
 		}
 	}
+}
+
+/* Various default input configurations */
+enum abstract FlxUICursorInputFlag(Int) from Int to Int
+{
+	/* tab to go "right", shift+tab to go "left", enter to click */
+	var KEYS_TAB = 0x00000001;
+	/* WASD to go up/left/down/right, enter to click */
+	var KEYS_WASD = 0x00000010;
+	/* Arrows to go up/left/down/right, enter to click */
+	var KEYS_ARROWS = 0x00000100;
+	/* Numpad numbers to go up/left/down/right, enter to click */
+	var KEYS_NUMPAD = 0x00001000;
+
+	// DPAD to go up/left/down/right, A to click
+	var GAMEPAD_DPAD = 0x00010000;
+	// Left STICK to go up/left/down/right, A to click
+	var GAMEPAD_LEFT_STICK = 0x00100000;
+	// Right STICK to go up/left/down/right, A to click
+	var GAMEPAD_RIGHT_STICK = 0x01000000;
+	// Left / Right shoulder buttons to go left/right, A to click
+	var GAMEPAD_SHOULDER_BUTTONS = 0x10000000;
+	
+	public inline function has(flag:FlxUICursorInputFlag)
+	{
+		return this & flag == flag;
+	}
+	
+	@:op(A & B) static function btAnd(a:FlxUICursorInputFlag, b:FlxUICursorInputFlag):FlxUICursorInputFlag;
+	@:op(A | B) static function btOr(a:FlxUICursorInputFlag, b:FlxUICursorInputFlag):FlxUICursorInputFlag;
 }
 
 typedef WidgetList =

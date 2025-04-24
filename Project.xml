@@ -189,9 +189,6 @@
 
 	<!-- ______________________________ Haxedefines _____________________________ -->
 
-	<haxeflag name="-dce" value="no" />
-	<haxeflag name="--macro" value="scripting.macros.Macros.addAdditionalClasses()" />
-
 	<!--Enable the Flixel core recording system-->
 	<!--<haxedef name="FLX_RECORD" />-->
 
@@ -247,6 +244,8 @@
 	
 	<!--Macro fixes-->
 	<haxeflag name="--macro" value="allowPackage('flash')" />
+	<haxeflag name="-dce" value="no" />
+	<haxeflag name="--macro" value="scripting.macros.Macros.addAdditionalClasses()" />
 	<haxeflag name="--macro" value="scripting.macros.Macros.initMacros()" />
 	
 	<haxedef name="DISABLED_MACRO_SUPERLATIVE" if="android" />

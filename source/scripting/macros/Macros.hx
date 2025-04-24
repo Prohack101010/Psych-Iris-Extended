@@ -19,6 +19,10 @@ class Macros {
 			"flixel.addons.plugin", "flixel.addons.text", "flixel.addons.tile", "flixel.addons.transition",
 			"flixel.addons.util",
 			// MOBILE
+			"shaders.flixel.system.FlxShader",
+			"android",
+			"android.callback",
+			"android.callback.CallBack",
 			"mobile",
 			"shaders",
 			"shaders.flixel",
